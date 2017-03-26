@@ -9,6 +9,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.GestureDetector;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.widget.Scroller;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import se.kmdev.tvepg.R;
+import se.kmdev.tvepg.epg.domain.EPGChannel;
 import se.kmdev.tvepg.epg.domain.EPGEvent;
 import se.kmdev.tvepg.epg.misc.EPGUtil;
 
@@ -55,6 +57,7 @@ public class EPG extends ViewGroup {
     private final int mChannelLayoutBackground;
     private final int mEventLayoutBackground;
     private final int mEventLayoutBackgroundCurrent;
+    private final int mEventLayoutBackgroundSelected;
     private final int mEventLayoutTextColor;
     private final int mEventLayoutTextSize;
     private final int mTimeBarLineWidth;
@@ -79,6 +82,7 @@ public class EPG extends ViewGroup {
     private long mTimeUpperBoundary;
 
     private EPGData epgData = null;
+    private EPGEvent selectedEvent = null;
 
     public EPG(Context context) {
         this(context, null);
@@ -117,6 +121,7 @@ public class EPG extends ViewGroup {
 
         mEventLayoutBackground = getResources().getColor(R.color.epg_event_layout_background);
         mEventLayoutBackgroundCurrent = getResources().getColor(R.color.epg_event_layout_background_current);
+        mEventLayoutBackgroundSelected = getResources().getColor(R.color.epg_event_layout_background_selected);
         mEventLayoutTextColor = getResources().getColor(R.color.epg_event_layout_text);
         mEventLayoutTextSize = getResources().getDimensionPixelSize(R.dimen.epg_event_layout_text);
 
@@ -170,6 +175,25 @@ public class EPG extends ViewGroup {
     public boolean onTouchEvent(MotionEvent event) {
         return mGestureDetector.onTouchEvent(event);
     }
+
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        //return mGame.handleMotionEvent(event);
+        return false;
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        //return mGame.handleKeyEvent(event);
+        return false;
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        return super.onKeyDown(keyCode, event);
+    }
+
 
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
@@ -280,15 +304,19 @@ public class EPG extends ViewGroup {
 
     }
 
+    private void selectEvent() {
+
+    }
+
     private void drawEvents(Canvas canvas, Rect drawingRect) {
         final int firstPos = getFirstVisibleChannelPosition();
         final int lastPos = getLastVisibleChannelPosition();
 
-        for (int pos = firstPos; pos <= lastPos; pos++) {
+        for (int channelPos = firstPos; channelPos <= lastPos; channelPos++) {
 
             // Set clip rectangle
             mClipRect.left = getScrollX() + mChannelLayoutWidth + mChannelLayoutMargin;
-            mClipRect.top = getTopFrom(pos);
+            mClipRect.top = getTopFrom(channelPos);
             mClipRect.right = getScrollX() + getWidth();
             mClipRect.bottom = mClipRect.top + mChannelLayoutHeight;
 
@@ -298,11 +326,11 @@ public class EPG extends ViewGroup {
             // Draw each event
             boolean foundFirst = false;
 
-            List<EPGEvent> epgEvents = epgData.getEvents(pos);
+            List<EPGEvent> epgEvents = epgData.getEvents(channelPos);
 
             for (EPGEvent event : epgEvents) {
                 if (isEventVisible(event.getStart(), event.getEnd())) {
-                    drawEvent(canvas, pos, event, drawingRect);
+                    drawEvent(canvas, channelPos, event, drawingRect);
                     foundFirst = true;
                 } else if (foundFirst) {
                     break;
@@ -319,7 +347,13 @@ public class EPG extends ViewGroup {
         setEventDrawingRectangle(channelPosition, event.getStart(), event.getEnd(), drawingRect);
 
         // Background
-        mPaint.setColor(event.isCurrent() ? mEventLayoutBackgroundCurrent : mEventLayoutBackground);
+        if (event.isSelected()) {
+            mPaint.setColor(mEventLayoutBackgroundSelected);
+        } else if (event.isCurrent()) {
+            mPaint.setColor(mEventLayoutBackgroundCurrent);
+        } else {
+            mPaint.setColor(mEventLayoutBackground);
+        }
         canvas.drawRect(drawingRect, mPaint);
 
         // Add left and right inner padding
@@ -332,7 +366,7 @@ public class EPG extends ViewGroup {
 
         // Move drawing.top so text will be centered (text is drawn bottom>up)
         mPaint.getTextBounds(event.getTitle(), 0, event.getTitle().length(), mMeasuringRect);
-        drawingRect.top += (((drawingRect.bottom - drawingRect.top) / 2) + (mMeasuringRect.height()/2));
+        drawingRect.top += (((drawingRect.bottom - drawingRect.top) / 2) + (mMeasuringRect.height() / 2));
 
         String title = event.getTitle();
         title = title.substring(0,
@@ -565,8 +599,25 @@ public class EPG extends ViewGroup {
         return -1;
     }
 
+    private EPGEvent getProgramAtTime(int channelPosition, long time) {
+        List<EPGEvent> events = epgData.getEvents(channelPosition);
+
+        if (events != null) {
+
+            for (int eventPos = 0; eventPos < events.size(); eventPos++) {
+                EPGEvent event = events.get(eventPos);
+
+                if (event.getStart() <= time && event.getEnd() >= time) {
+                    return event;
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * Add click listener to the EPG.
+     *
      * @param epgClickListener to add.
      */
     public void setEPGClickListener(EPGClickListener epgClickListener) {
@@ -575,6 +626,7 @@ public class EPG extends ViewGroup {
 
     /**
      * Add data to EPG. This must be set for EPG to able to draw something.
+     *
      * @param epgData pass in any implementation of EPGData.
      */
     public void setEPGData(EPGData epgData) {
@@ -584,6 +636,7 @@ public class EPG extends ViewGroup {
     /**
      * This will recalculate boundaries, maximal scroll and scroll to start position which is current time.
      * To be used on device rotation etc since the device height and width will change.
+     *
      * @param withAnimation true if scroll to current position should be animated.
      */
     public void recalculateAndRedraw(boolean withAnimation) {
@@ -617,6 +670,61 @@ public class EPG extends ViewGroup {
         mChannelImageCache.clear();
     }
 
+    public void selectEvent(EPGEvent epgEvent) {
+        if (this.selectedEvent != null) {
+            this.selectedEvent.selected = false;
+        }
+        epgEvent.selected = true;
+        this.selectedEvent = epgEvent;
+        //redraw to get the coloring of the selected event
+        redraw();
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        //TODO: select a default eventItem when none is selected.
+        if (this.selectedEvent != null) {
+            if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                if (this.selectedEvent.getNextEvent() != null) {
+                    this.selectedEvent.selected = false;
+                    this.selectedEvent = this.selectedEvent.getNextEvent();
+                    this.selectedEvent.selected = true;
+                }
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT) {
+                if (this.selectedEvent.getPreviousEvent() != null) {
+                    this.selectedEvent.selected = false;
+                    this.selectedEvent = this.selectedEvent.getPreviousEvent();
+                    this.selectedEvent.selected = true;
+                }
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP) {
+                if (this.selectedEvent.getChannel().getPreviousChannel() != null) {
+                    mTimeLowerBoundary = getTimeFrom(getScrollX());
+                    mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
+                    long lowerBoundary = Math.max(mTimeLowerBoundary, this.selectedEvent.getStart());
+                    long upperBoundary = Math.max(mTimeUpperBoundary, this.selectedEvent.getEnd());
+                    long eventMiddleTime = (lowerBoundary + upperBoundary) / 2;
+                    EPGEvent previousChannelEvent = getProgramAtTime(this.selectedEvent.getChannel().getPreviousChannel().getChannelID(), eventMiddleTime);
+                    this.selectedEvent.selected = false;
+                    this.selectedEvent = previousChannelEvent;
+                    this.selectedEvent.selected = true;
+                }
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN) {
+                if (this.selectedEvent.getChannel().getNextChannel() != null) {
+                    mTimeLowerBoundary = getTimeFrom(getScrollX());
+                    mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
+                    long lowerBoundary = Math.max(mTimeLowerBoundary, this.selectedEvent.getStart());
+                    long upperBoundary = Math.max(mTimeUpperBoundary, this.selectedEvent.getEnd());
+                    long eventMiddleTime = (lowerBoundary + upperBoundary) / 2;
+                    EPGEvent nextChannelEvent = getProgramAtTime(this.selectedEvent.getChannel().getNextChannel().getChannelID(), eventMiddleTime);
+                    this.selectedEvent.selected = false;
+                    this.selectedEvent = nextChannelEvent;
+                    this.selectedEvent.selected = true;
+                }
+            }
+            redraw();
+        }
+        return super.onKeyUp(keyCode, event);
+    }
 
     private class OnGestureListener extends GestureDetector.SimpleOnGestureListener {
 
@@ -633,7 +741,7 @@ public class EPG extends ViewGroup {
 
             int channelPosition = getChannelPosition(scrollY);
             if (channelPosition != -1 && mClickListener != null) {
-                if (calculateResetButtonHitArea().contains(scrollX,scrollY)) {
+                if (calculateResetButtonHitArea().contains(scrollX, scrollY)) {
                     // Reset button clicked
                     mClickListener.onResetButtonClicked();
                 } else if (calculateChannelsHitArea().contains(x, y)) {

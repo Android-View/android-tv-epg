@@ -19,11 +19,11 @@ public class MockDataService {
 
     private static Random rand = new Random();
     private static List<Integer> availableEventLength = Lists.newArrayList(
-            1000*60*15,  // 15 minutes
-            1000*60*30,  // 30 minutes
-            1000*60*45,  // 45 minutes
-            1000*60*60,  // 60 minutes
-            1000*60*120  // 120 minutes
+            1000 * 60 * 15,  // 15 minutes
+            1000 * 60 * 30,  // 30 minutes
+            1000 * 60 * 45,  // 45 minutes
+            1000 * 60 * 60,  // 60 minutes
+            1000 * 60 * 120  // 120 minutes
     );
 
     private static List<String> availableEventTitles = Lists.newArrayList(
@@ -48,12 +48,17 @@ public class MockDataService {
         HashMap<EPGChannel, List<EPGEvent>> result = Maps.newLinkedHashMap();
 
         long nowMillis = System.currentTimeMillis();
+        EPGChannel prevChannel = null;
 
-        for (int i=0 ; i < 20 ; i++) {
+        for (int i = 0; i < 20; i++) {
             EPGChannel epgChannel = new EPGChannel(availableChannelLogos.get(i % 5),
-                    "Channel " + (i+1), Integer.toString(i));
-
+                    "Channel " + (i + 1), i);
+            if (prevChannel != null) {
+                prevChannel.setNextChannel(epgChannel);
+                epgChannel.setPreviousChannel(prevChannel);
+            }
             result.put(epgChannel, createEvents(epgChannel, nowMillis));
+            prevChannel = epgChannel;
         }
 
         return result;
@@ -64,21 +69,27 @@ public class MockDataService {
 
         long epgStart = nowMillis - EPG.DAYS_BACK_MILLIS;
         long epgEnd = nowMillis + EPG.DAYS_FORWARD_MILLIS;
-
+        EPGEvent prevEvent = null;
         long currentTime = epgStart;
 
         while (currentTime <= epgEnd) {
             long eventEnd = getEventEnd(currentTime);
-            EPGEvent epgEvent = new EPGEvent(currentTime, eventEnd, availableEventTitles.get(randomBetween(0, 6)));
+            EPGEvent epgEvent = new EPGEvent(epgChannel, currentTime, eventEnd, availableEventTitles.get(randomBetween(0, 6)));
+            if (prevEvent != null) {
+                prevEvent.setNextEvent(epgEvent);
+                epgEvent.setPreviousEvent(prevEvent);
+            }
+            prevEvent = epgEvent;
             result.add(epgEvent);
             currentTime = eventEnd;
+            epgChannel.addEvent(epgEvent);
         }
 
         return result;
     }
 
     private static long getEventEnd(long eventStartMillis) {
-        long length = availableEventLength.get(randomBetween(0,4));
+        long length = availableEventLength.get(randomBetween(0, 4));
         return eventStartMillis + length;
     }
 
