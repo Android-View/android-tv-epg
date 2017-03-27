@@ -81,6 +81,7 @@ public class EPG extends ViewGroup {
     private long mTimeLowerBoundary;
     private long mTimeUpperBoundary;
 
+    //TODO: find out why grid is shifted -> because of channels bar?
     private long mMargin = 800000;
 
     private EPGData epgData = null;
