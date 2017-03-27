@@ -81,6 +81,8 @@ public class EPG extends ViewGroup {
     private long mTimeLowerBoundary;
     private long mTimeUpperBoundary;
 
+    private long mMargin = 800000;
+
     private EPGData epgData = null;
     private EPGEvent selectedEvent = null;
 
@@ -683,25 +685,47 @@ public class EPG extends ViewGroup {
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
         //TODO: select a default eventItem when none is selected.
-        if (this.selectedEvent != null) {
+
+        mTimeLowerBoundary = getTimeFrom(getScrollX());
+        mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
+
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            recalculateAndRedraw(true);
+        } else if (this.selectedEvent != null) {
             if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT) {
                 if (this.selectedEvent.getNextEvent() != null) {
                     this.selectedEvent.selected = false;
                     this.selectedEvent = this.selectedEvent.getNextEvent();
                     this.selectedEvent.selected = true;
+                    if (this.selectedEvent.getEnd() > mTimeUpperBoundary) {
+                        //we need to scroll the grid to the left
+                        long dT = (mTimeUpperBoundary - this.selectedEvent.getEnd() - mMargin) * -1;
+                        if (this.selectedEvent.getEnd() + mMargin - this.selectedEvent.getStart() > (getWidth() * mMillisPerPixel)) {
+                            //prevent start of event to scroll left out of screen
+                            dT = (mTimeLowerBoundary - this.selectedEvent.getStart() - mMargin) * -1;
+                        }
+                        int dX = Math.round(dT / mMillisPerPixel);
+
+                        mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, 600);
+                    }
                 }
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT) {
                 if (this.selectedEvent.getPreviousEvent() != null) {
                     this.selectedEvent.selected = false;
                     this.selectedEvent = this.selectedEvent.getPreviousEvent();
                     this.selectedEvent.selected = true;
+                    if (this.selectedEvent.getStart() < mTimeLowerBoundary) {
+                        //we need to scroll the grid to the left
+                        long dT = (this.selectedEvent.getStart() - mTimeLowerBoundary - mMargin);
+                        int dX = Math.round(dT / mMillisPerPixel);
+
+                        mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, 600);
+                    }
                 }
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP) {
                 if (this.selectedEvent.getChannel().getPreviousChannel() != null) {
-                    mTimeLowerBoundary = getTimeFrom(getScrollX());
-                    mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
                     long lowerBoundary = Math.max(mTimeLowerBoundary, this.selectedEvent.getStart());
-                    long upperBoundary = Math.max(mTimeUpperBoundary, this.selectedEvent.getEnd());
+                    long upperBoundary = Math.min(mTimeUpperBoundary, this.selectedEvent.getEnd());
                     long eventMiddleTime = (lowerBoundary + upperBoundary) / 2;
                     EPGEvent previousChannelEvent = getProgramAtTime(this.selectedEvent.getChannel().getPreviousChannel().getChannelID(), eventMiddleTime);
                     this.selectedEvent.selected = false;
@@ -710,10 +734,8 @@ public class EPG extends ViewGroup {
                 }
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN) {
                 if (this.selectedEvent.getChannel().getNextChannel() != null) {
-                    mTimeLowerBoundary = getTimeFrom(getScrollX());
-                    mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
                     long lowerBoundary = Math.max(mTimeLowerBoundary, this.selectedEvent.getStart());
-                    long upperBoundary = Math.max(mTimeUpperBoundary, this.selectedEvent.getEnd());
+                    long upperBoundary = Math.min(mTimeUpperBoundary, this.selectedEvent.getEnd());
                     long eventMiddleTime = (lowerBoundary + upperBoundary) / 2;
                     EPGEvent nextChannelEvent = getProgramAtTime(this.selectedEvent.getChannel().getNextChannel().getChannelID(), eventMiddleTime);
                     this.selectedEvent.selected = false;
@@ -721,6 +743,7 @@ public class EPG extends ViewGroup {
                     this.selectedEvent.selected = true;
                 }
             }
+
             redraw();
         }
         return super.onKeyUp(keyCode, event);
