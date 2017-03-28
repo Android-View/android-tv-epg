@@ -13,6 +13,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.widget.Scroller;
+import android.widget.Toast;
 
 import com.google.common.collect.Maps;
 import com.squareup.picasso.Picasso;
@@ -23,6 +24,7 @@ import org.joda.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import se.kmdev.tvepg.MainActivity;
 import se.kmdev.tvepg.R;
 import se.kmdev.tvepg.epg.domain.EPGChannel;
 import se.kmdev.tvepg.epg.domain.EPGEvent;
@@ -654,6 +656,15 @@ public class EPG extends ViewGroup {
                     0, withAnimation ? 600 : 0);
 
             redraw();
+
+            //TEMP!!
+            if(this.selectedEvent==null){
+                try {
+                    selectEvent(epgData.getEvent(0, getProgramPosition(0, getTimeFrom(getScrollX()))));
+                }catch (Exception ex) {
+                    //too bad
+                }
+            }
         }
     }
 
