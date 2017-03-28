@@ -679,6 +679,7 @@ public class EPG extends ViewGroup {
         }
         epgEvent.selected = true;
         this.selectedEvent = epgEvent;
+        optimizeVisibility(epgEvent);
         //redraw to get the coloring of the selected event
         redraw();
     }
@@ -698,30 +699,14 @@ public class EPG extends ViewGroup {
                     this.selectedEvent.selected = false;
                     this.selectedEvent = this.selectedEvent.getNextEvent();
                     this.selectedEvent.selected = true;
-                    if (this.selectedEvent.getEnd() > mTimeUpperBoundary) {
-                        //we need to scroll the grid to the left
-                        long dT = (mTimeUpperBoundary - this.selectedEvent.getEnd() - mMargin) * -1;
-                        if (this.selectedEvent.getEnd() + mMargin - this.selectedEvent.getStart() > (getWidth() * mMillisPerPixel)) {
-                            //prevent start of event to scroll left out of screen
-                            dT = (mTimeLowerBoundary - this.selectedEvent.getStart() - mMargin) * -1;
-                        }
-                        int dX = Math.round(dT / mMillisPerPixel);
-
-                        mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, 600);
-                    }
+                    optimizeVisibility(this.selectedEvent);
                 }
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT) {
                 if (this.selectedEvent.getPreviousEvent() != null) {
                     this.selectedEvent.selected = false;
                     this.selectedEvent = this.selectedEvent.getPreviousEvent();
                     this.selectedEvent.selected = true;
-                    if (this.selectedEvent.getStart() < mTimeLowerBoundary) {
-                        //we need to scroll the grid to the left
-                        long dT = (this.selectedEvent.getStart() - mTimeLowerBoundary - mMargin);
-                        int dX = Math.round(dT / mMillisPerPixel);
-
-                        mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, 600);
-                    }
+                    optimizeVisibility(this.selectedEvent);
                 }
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP) {
                 if (this.selectedEvent.getChannel().getPreviousChannel() != null) {
@@ -748,6 +733,30 @@ public class EPG extends ViewGroup {
             redraw();
         }
         return super.onKeyUp(keyCode, event);
+    }
+
+    public void optimizeVisibility(EPGEvent epgEvent) {
+
+        long dT = 0;
+        int dX = 0;
+
+        mTimeLowerBoundary = getTimeFrom(getScrollX());
+        mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
+        if (epgEvent.getEnd() > mTimeUpperBoundary) {
+            //we need to scroll the grid to the left
+            dT = (mTimeUpperBoundary - epgEvent.getEnd() - mMargin) * -1;
+            dX = Math.round(dT / mMillisPerPixel);
+            mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, 600);
+        }
+        //re-calculate boundaries after scroll
+        mTimeLowerBoundary = getTimeFrom(getScrollX());
+        mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
+        if (epgEvent.getStart() < mTimeLowerBoundary) {
+            //we need to scroll the grid to the left
+            dT = (this.selectedEvent.getStart() - mTimeLowerBoundary - mMargin);
+            dX = Math.round(dT / mMillisPerPixel);
+            mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, 600);
+        }
     }
 
     private class OnGestureListener extends GestureDetector.SimpleOnGestureListener {
