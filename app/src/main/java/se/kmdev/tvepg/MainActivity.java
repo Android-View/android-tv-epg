@@ -44,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onEventClicked(int channelPosition, int programPosition, EPGEvent epgEvent) {
                 Toast.makeText(MainActivity.this, epgEvent.getTitle() + " clicked", Toast.LENGTH_SHORT).show();
-                epg.selectEvent(epgEvent);
+                epg.selectEvent(epgEvent, true);
             }
 
             @Override

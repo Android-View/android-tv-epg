@@ -144,6 +144,7 @@ public class EPG extends ViewGroup {
         mResetButtonIcon = BitmapFactory.decodeResource(getResources(), R.drawable.reset, options);
     }
 
+
     @Override
     protected void onDraw(Canvas canvas) {
 
@@ -651,20 +652,16 @@ public class EPG extends ViewGroup {
             calculateMaxVerticalScroll();
             calculateMaxHorizontalScroll();
 
+            //Select initial event
+            selectEvent(epgData.getEvent(0, getProgramPosition(0, getTimeFrom(getXPositionStart()+(getWidth()/2)))), withAnimation);
+
+            //re-center
             mScroller.startScroll(getScrollX(), getScrollY(),
                     getXPositionStart() - getScrollX(),
                     0, withAnimation ? 600 : 0);
 
             redraw();
 
-            //TEMP!!
-            if(this.selectedEvent==null){
-                try {
-                    selectEvent(epgData.getEvent(0, getProgramPosition(0, getTimeFrom(getScrollX()))));
-                }catch (Exception ex) {
-                    //too bad
-                }
-            }
         }
     }
 
@@ -684,13 +681,13 @@ public class EPG extends ViewGroup {
         mChannelImageCache.clear();
     }
 
-    public void selectEvent(EPGEvent epgEvent) {
+    public void selectEvent(EPGEvent epgEvent, boolean withAnimation) {
         if (this.selectedEvent != null) {
             this.selectedEvent.selected = false;
         }
         epgEvent.selected = true;
         this.selectedEvent = epgEvent;
-        optimizeVisibility(epgEvent);
+        optimizeVisibility(epgEvent, withAnimation);
         //redraw to get the coloring of the selected event
         redraw();
     }
@@ -710,14 +707,14 @@ public class EPG extends ViewGroup {
                     this.selectedEvent.selected = false;
                     this.selectedEvent = this.selectedEvent.getNextEvent();
                     this.selectedEvent.selected = true;
-                    optimizeVisibility(this.selectedEvent);
+                    optimizeVisibility(this.selectedEvent, true);
                 }
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT) {
                 if (this.selectedEvent.getPreviousEvent() != null) {
                     this.selectedEvent.selected = false;
                     this.selectedEvent = this.selectedEvent.getPreviousEvent();
                     this.selectedEvent.selected = true;
-                    optimizeVisibility(this.selectedEvent);
+                    optimizeVisibility(this.selectedEvent, true);
                 }
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP) {
                 if (this.selectedEvent.getChannel().getPreviousChannel() != null) {
@@ -746,7 +743,7 @@ public class EPG extends ViewGroup {
         return super.onKeyUp(keyCode, event);
     }
 
-    public void optimizeVisibility(EPGEvent epgEvent) {
+    public void optimizeVisibility(EPGEvent epgEvent, boolean withAnimation) {
 
         long dT = 0;
         int dX = 0;
@@ -757,7 +754,7 @@ public class EPG extends ViewGroup {
             //we need to scroll the grid to the left
             dT = (mTimeUpperBoundary - epgEvent.getEnd() - mMargin) * -1;
             dX = Math.round(dT / mMillisPerPixel);
-            mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, 600);
+            mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, withAnimation ? 600 : 0);
         }
         //re-calculate boundaries after scroll
         mTimeLowerBoundary = getTimeFrom(getScrollX());
@@ -766,7 +763,7 @@ public class EPG extends ViewGroup {
             //we need to scroll the grid to the left
             dT = (this.selectedEvent.getStart() - mTimeLowerBoundary - mMargin);
             dX = Math.round(dT / mMillisPerPixel);
-            mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, 600);
+            mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, withAnimation ? 600 : 0);
         }
     }
 
