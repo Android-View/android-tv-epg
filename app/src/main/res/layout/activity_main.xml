@@ -1,13 +1,73 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/background_material_dark"
+    android:orientation="vertical"
     tools:context=".MainActivity">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ImageView
+            android:id="@+id/program_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.25"
+            android:background="@color/background_material_dark"
+            android:contentDescription="@string/program_image"
+            android:scaleType="matrix"
+            android:src="@drawable/ic_banner" />
+
+        <TextView
+            android:id="@+id/current_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentTop="true"
+            android:layout_marginEnd="200dp"
+            android:layout_marginTop="100dp"
+            android:text="@string/time"
+            android:textColor="@color/background_material_light"
+            android:textSize="30sp"
+            tools:ignore="RelativeOverlap" />
+
+        <TextView
+            android:id="@+id/current_event"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
+            android:layout_marginStart="200dp"
+            android:layout_marginTop="100dp"
+            android:text="@string/programTitle"
+            android:textColor="@color/background_material_light"
+            android:textSize="30sp"
+            tools:ignore="RelativeOverlap" />
+
+        <TextView
+            android:id="@+id/current_event_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
+            android:layout_marginStart="200dp"
+            android:layout_marginTop="100dp"
+            android:text="@string/programTitle"
+            android:textColor="@color/background_material_light"
+            android:textSize="18sp"
+            tools:ignore="RelativeOverlap" />
+
+    </RelativeLayout>
 
     <se.kmdev.tvepg.epg.EPG
         android:id="@+id/epg"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/epg_background"/>
+        android:layout_width="fill_parent"
+        android:layout_height="0dp"
+        android:layout_weight="2"
+        android:background="@color/epg_background" />
 
-</RelativeLayout>
+</LinearLayout>

@@ -14,6 +14,15 @@ public interface EPGData {
 
     EPGChannel getChannel(int position);
 
+    /**
+     * Get or create a channel with the given name
+     * @param channelName
+     * @return
+     */
+    EPGChannel getOrCreateChannel(String channelName);
+
+    EPGChannel addNewChannel(String channelName);
+
     List<EPGEvent> getEvents(int channelPosition);
 
     EPGEvent getEvent(int channelPosition, int programPosition);
@@ -21,4 +30,5 @@ public interface EPGData {
     int getChannelCount();
 
     boolean hasData();
+
 }

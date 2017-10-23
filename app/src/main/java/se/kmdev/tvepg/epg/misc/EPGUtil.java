@@ -30,6 +30,11 @@ public class EPGUtil {
         return date.dayOfWeek().getAsText();
     }
 
+    public static String getEPGdayName(long dateMillis) {
+        LocalDate date = new LocalDate(dateMillis);
+        return date.dayOfWeek().getAsShortText() + " " + date.getDayOfMonth() + "/" + date.getMonthOfYear();
+    }
+
     public static void loadImageInto(Context context, String url, int width, int height, Target target) {
         initPicasso(context);
 

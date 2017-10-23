@@ -9,6 +9,7 @@ public class EPGEvent {
     private final long end;
     private final String title;
     private final EPGChannel channel;
+    private final String programUrl;
 
     private EPGEvent previousEvent;
     private EPGEvent nextEvent;
@@ -16,11 +17,12 @@ public class EPGEvent {
     //is this the current selected event?
     public boolean selected;
 
-    public EPGEvent(EPGChannel epgChannel, long start, long end, String title) {
+    public EPGEvent(EPGChannel epgChannel, long start, long end, String title, String programUrl) {
         this.channel = epgChannel;
         this.start = start;
         this.end = end;
         this.title = title;
+        this.programUrl = programUrl;
     }
 
     public EPGChannel getChannel() {
@@ -37,6 +39,10 @@ public class EPGEvent {
 
     public String getTitle() {
         return title;
+    }
+
+    public String getProgramUrl() {
+        return programUrl;
     }
 
     public boolean isCurrent() {

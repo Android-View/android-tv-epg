@@ -74,7 +74,7 @@ public class MockDataService {
 
         while (currentTime <= epgEnd) {
             long eventEnd = getEventEnd(currentTime);
-            EPGEvent epgEvent = new EPGEvent(epgChannel, currentTime, eventEnd, availableEventTitles.get(randomBetween(0, 6)));
+            EPGEvent epgEvent = new EPGEvent(epgChannel, currentTime, eventEnd, availableEventTitles.get(randomBetween(0, 6)), null);
             if (prevEvent != null) {
                 prevEvent.setNextEvent(epgEvent);
                 epgEvent.setPreviousEvent(prevEvent);

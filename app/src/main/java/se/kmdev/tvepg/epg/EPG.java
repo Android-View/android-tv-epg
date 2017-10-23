@@ -1,19 +1,26 @@
 package se.kmdev.tvepg.epg;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.os.Parcelable;
 import android.util.AttributeSet;
+import android.util.DisplayMetrics;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.Scroller;
-import android.widget.Toast;
+import android.widget.TextView;
 
 import com.google.common.collect.Maps;
 import com.squareup.picasso.Picasso;
@@ -21,13 +28,17 @@ import com.squareup.picasso.Target;
 
 import org.joda.time.LocalDateTime;
 
+import java.io.InterruptedIOException;
+import java.net.URL;
+import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
 
-import se.kmdev.tvepg.MainActivity;
 import se.kmdev.tvepg.R;
 import se.kmdev.tvepg.epg.domain.EPGChannel;
 import se.kmdev.tvepg.epg.domain.EPGEvent;
+import se.kmdev.tvepg.epg.domain.EPGState;
+import se.kmdev.tvepg.epg.misc.EPGDataImpl;
 import se.kmdev.tvepg.epg.misc.EPGUtil;
 
 /**
@@ -44,6 +55,9 @@ public class EPG extends ViewGroup {
     public static final int DAYS_FORWARD_MILLIS = 3 * 24 * 60 * 60 * 1000;     // 3 days
     public static final int HOURS_IN_VIEWPORT_MILLIS = 2 * 60 * 60 * 1000;     // 2 hours
     public static final int TIME_LABEL_SPACING_MILLIS = 30 * 60 * 1000;        // 30 minutes
+
+    private SimpleDateFormat programTimeFormatLong = new SimpleDateFormat("dd MMM, EEEE  HH:mm");
+    private SimpleDateFormat programTimeFormat = new SimpleDateFormat("HH:mm");
 
     private final Rect mClipRect;
     private final Rect mDrawingRect;
@@ -84,10 +98,19 @@ public class EPG extends ViewGroup {
     private long mTimeUpperBoundary;
 
     //TODO: find out why grid is shifted -> because of channels bar?
-    private long mMargin = 800000;
+    private long mMargin = 200000;
 
     private EPGData epgData = null;
     private EPGEvent selectedEvent = null;
+
+    private static ImageView programImage = null;
+    private AsyncTask loadProgramImage = null;
+    private TextView currentEventTextView;
+    private TextView currentEventTimeTextView;
+    private int orientation;
+
+    public static int screenWidth;
+    public static int screenHeight;
 
     public EPG(Context context) {
         this(context, null);
@@ -142,8 +165,38 @@ public class EPG extends ViewGroup {
         options.outWidth = mResetButtonSize;
         options.outHeight = mResetButtonSize;
         mResetButtonIcon = BitmapFactory.decodeResource(getResources(), R.drawable.reset, options);
+
     }
 
+
+    @Override
+    //save state to recover state after restart or screen rotation
+    public Parcelable onSaveInstanceState() {
+        Parcelable superState = super.onSaveInstanceState();
+        EPGState epgState = new EPGState(superState);
+        epgState.setCurrentEvent(this.selectedEvent);
+        return epgState;
+    }
+
+    @Override
+    //recover the state
+    public void onRestoreInstanceState(Parcelable state) {
+        if(!(state instanceof EPGState)) {
+            super.onRestoreInstanceState(state);
+            return;
+        }
+        EPGState epgState = (EPGState)state;
+        super.onRestoreInstanceState(epgState.getSuperState());
+        this.selectedEvent = epgState.getCurrentEvent();
+    }
+
+    private int getChannelAreaWidth() {
+        return mChannelLayoutWidth + mChannelLayoutPadding + mChannelLayoutMargin;
+    }
+
+    private int getProgramAreaWidth() {
+        return getWidth() - getChannelAreaWidth();
+    }
 
     @Override
     protected void onDraw(Canvas canvas) {
@@ -174,7 +227,7 @@ public class EPG extends ViewGroup {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        recalculateAndRedraw(false);
+        recalculateAndRedraw(this.selectedEvent, false);
     }
 
     @Override
@@ -288,7 +341,7 @@ public class EPG extends ViewGroup {
         mPaint.setColor(mEventLayoutTextColor);
         mPaint.setTextSize(mTimeBarTextSize);
         mPaint.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText(EPGUtil.getWeekdayName(mTimeLowerBoundary),
+        canvas.drawText(EPGUtil.getEPGdayName(mTimeLowerBoundary),
                 drawingRect.left + ((drawingRect.right - drawingRect.left) / 2),
                 drawingRect.top + (((drawingRect.bottom - drawingRect.top) / 2) + (mTimeBarTextSize / 2)), mPaint);
 
@@ -363,7 +416,7 @@ public class EPG extends ViewGroup {
         canvas.drawRect(drawingRect, mPaint);
 
         // Add left and right inner padding
-        drawingRect.left += mChannelLayoutPadding;
+        drawingRect.left += mChannelLayoutPadding + 16;
         drawingRect.right -= mChannelLayoutPadding;
 
         // Text
@@ -521,7 +574,7 @@ public class EPG extends ViewGroup {
     }
 
     private void calculateMaxVerticalScroll() {
-        final int maxVerticalScroll = getTopFrom(epgData.getChannelCount() - 2) + mChannelLayoutHeight;
+        final int maxVerticalScroll = getTopFrom(epgData.getChannelCount() - 1) + mChannelLayoutHeight;
         mMaxVerticalScroll = maxVerticalScroll < getHeight() ? 0 : maxVerticalScroll - getHeight();
     }
 
@@ -636,7 +689,30 @@ public class EPG extends ViewGroup {
      * @param epgData pass in any implementation of EPGData.
      */
     public void setEPGData(EPGData epgData) {
-        this.epgData = epgData;
+        this.epgData = mergeEPGData(this.epgData, epgData);
+        //this.epgData = epgData;
+    }
+
+    private EPGData mergeEPGData(EPGData oldData, EPGData newData) {
+        try {
+            if (oldData == null) {
+                Map<EPGChannel, List<EPGEvent>> map = Maps.newLinkedHashMap();
+                oldData = new EPGDataImpl(map);
+            }
+            if (newData != null) {
+                for (int i = 0; i < newData.getChannelCount(); i++) {
+                    EPGChannel newChannel = newData.getChannel(i);
+                    EPGChannel oldChannel = oldData.getOrCreateChannel(newChannel.getName());
+                    for (int j = 0; j < newChannel.getEvents().size(); j++) {
+                        EPGEvent newEvent = newChannel.getEvents().get(j);
+                        oldChannel.addEvent(newEvent);
+                    }
+                }
+            }
+            return oldData;
+        } catch (Throwable e) {
+            throw new RuntimeException("Could not merge EPG data: " + e.getClass().getSimpleName() + " " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -645,7 +721,7 @@ public class EPG extends ViewGroup {
      *
      * @param withAnimation true if scroll to current position should be animated.
      */
-    public void recalculateAndRedraw(boolean withAnimation) {
+    public void recalculateAndRedraw(EPGEvent selectedEvent, boolean withAnimation) {
         if (epgData != null && epgData.hasData()) {
             resetBoundaries();
 
@@ -653,13 +729,18 @@ public class EPG extends ViewGroup {
             calculateMaxHorizontalScroll();
 
             //Select initial event
-            selectEvent(epgData.getEvent(0, getProgramPosition(0, getTimeFrom(getXPositionStart()+(getWidth()/2)))), withAnimation);
+            if(selectedEvent!=null){
+                selectEvent(selectedEvent, withAnimation);
+            }else {
+                selectEvent(epgData.getEvent(0, getProgramPosition(0, getTimeFrom(getXPositionStart() + (getWidth() / 2)))), withAnimation);
+            }
 
             //re-center
+            /*
             mScroller.startScroll(getScrollX(), getScrollY(),
                     getXPositionStart() - getScrollX(),
                     0, withAnimation ? 600 : 0);
-
+*/
             redraw();
 
         }
@@ -681,6 +762,18 @@ public class EPG extends ViewGroup {
         mChannelImageCache.clear();
     }
 
+    private void loadProgramDetails(EPGEvent epgEvent) {
+        // load program details
+        if (loadProgramImage != null && loadProgramImage.getStatus() != AsyncTask.Status.FINISHED) {
+            loadProgramImage.cancel(true);
+        }
+        loadProgramImage = new AsyncLoadProgramImage(this, epgEvent).execute();
+        //set program title
+        currentEventTextView.setText(epgEvent.getTitle());
+        //set program times
+        currentEventTimeTextView.setText(programTimeFormatLong.format(epgEvent.getStart()) + " - " + programTimeFormat.format(epgEvent.getEnd()));
+    }
+
     public void selectEvent(EPGEvent epgEvent, boolean withAnimation) {
         if (this.selectedEvent != null) {
             this.selectedEvent.selected = false;
@@ -688,8 +781,86 @@ public class EPG extends ViewGroup {
         epgEvent.selected = true;
         this.selectedEvent = epgEvent;
         optimizeVisibility(epgEvent, withAnimation);
+        loadProgramDetails(epgEvent);
+
+
         //redraw to get the coloring of the selected event
         redraw();
+    }
+
+    public void setProgramImageView(ImageView aProgramImage) {
+        programImage = aProgramImage;
+        updateImageCropping(programImage);
+    }
+
+    public void setCurrentEventTextView(TextView currentEventTextView) {
+        this.currentEventTextView = currentEventTextView;
+    }
+
+    public void setCurrentEventTimeTextView(TextView currentEventTimeTextView) {
+        this.currentEventTimeTextView = currentEventTimeTextView;
+    }
+
+    // Configuration.ORIENTATION_PORTRAIT or Configuration.ORIENTATION_LANDSCAPE
+    public void setOrientation(int orientation) {
+        this.orientation = orientation;
+        DisplayMetrics dm = Resources.getSystem().getDisplayMetrics();
+        screenWidth = dm.widthPixels;
+        screenHeight = dm.heightPixels;
+    }
+
+    private static class AsyncLoadProgramImage extends AsyncTask<EPGEvent, Void, Bitmap> {
+
+        private final EPG epg;
+        EPGEvent epgEvent;
+
+        public AsyncLoadProgramImage(EPG epg, EPGEvent epgEvent) {
+            this.epg = epg;
+            this.epgEvent = epgEvent;
+        }
+
+        @Override
+        protected Bitmap doInBackground(EPGEvent... voids) {
+            URL url;
+            try {
+                String uri = this.epgEvent.getProgramUrl();
+                if (uri != null) {
+                    url = new URL(uri);
+                } else {
+                    url = new URL("https://www.sound-star.nl/wp-content/uploads/2016/05/Dj-in-the-mix_Ultra-HD.jpg");
+                }
+                return BitmapFactory.decodeStream(url.openConnection().getInputStream());
+            } catch (InterruptedIOException e) {
+                //normal
+                return null;
+            } catch (Throwable e) {
+                e.printStackTrace();
+                //todo: return the default image
+                return null;
+            }
+        }
+
+        @Override
+        protected void onPostExecute(Bitmap bmp) {
+            try {
+                if (bmp != null) {
+                    programImage.setImageBitmap(bmp);
+                    updateImageCropping(programImage);
+                }
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static void updateImageCropping(ImageView imageView) {
+        final Matrix matrix = new Matrix();
+        final float imageWidth = imageView.getDrawable().getIntrinsicWidth();
+        final float imageHeight = imageView.getDrawable().getIntrinsicHeight();
+        final float scaleRatio = screenWidth / imageWidth;
+        matrix.postScale(scaleRatio, scaleRatio);
+        matrix.postTranslate(0, -1 * imageHeight * 0.30f);
+        imageView.setImageMatrix(matrix);
     }
 
     @Override
@@ -700,7 +871,7 @@ public class EPG extends ViewGroup {
         mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
 
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-            recalculateAndRedraw(true);
+            recalculateAndRedraw(null, true);
         } else if (this.selectedEvent != null) {
             if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT) {
                 if (this.selectedEvent.getNextEvent() != null) {
@@ -722,9 +893,12 @@ public class EPG extends ViewGroup {
                     long upperBoundary = Math.min(mTimeUpperBoundary, this.selectedEvent.getEnd());
                     long eventMiddleTime = (lowerBoundary + upperBoundary) / 2;
                     EPGEvent previousChannelEvent = getProgramAtTime(this.selectedEvent.getChannel().getPreviousChannel().getChannelID(), eventMiddleTime);
-                    this.selectedEvent.selected = false;
-                    this.selectedEvent = previousChannelEvent;
-                    this.selectedEvent.selected = true;
+                    if (previousChannelEvent != null) {
+                        this.selectedEvent.selected = false;
+                        this.selectedEvent = previousChannelEvent;
+                        this.selectedEvent.selected = true;
+                    }
+                    optimizeVisibility(this.selectedEvent, true);
                 }
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN) {
                 if (this.selectedEvent.getChannel().getNextChannel() != null) {
@@ -732,39 +906,75 @@ public class EPG extends ViewGroup {
                     long upperBoundary = Math.min(mTimeUpperBoundary, this.selectedEvent.getEnd());
                     long eventMiddleTime = (lowerBoundary + upperBoundary) / 2;
                     EPGEvent nextChannelEvent = getProgramAtTime(this.selectedEvent.getChannel().getNextChannel().getChannelID(), eventMiddleTime);
-                    this.selectedEvent.selected = false;
-                    this.selectedEvent = nextChannelEvent;
-                    this.selectedEvent.selected = true;
+                    if (nextChannelEvent != null) {
+                        this.selectedEvent.selected = false;
+                        this.selectedEvent = nextChannelEvent;
+                        this.selectedEvent.selected = true;
+                    }
+                    optimizeVisibility(this.selectedEvent, true);
                 }
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_BUTTON_R1 || event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) {
+                gotoNextDay(this.selectedEvent);
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_BUTTON_L1 || event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_REWIND) {
+                gotoPreviousDay(this.selectedEvent);
             }
 
+            loadProgramDetails(this.selectedEvent);
             redraw();
         }
         return super.onKeyUp(keyCode, event);
+    }
+
+    private void gotoPreviousDay(EPGEvent currentEvent) {
+        //TODO
+    }
+
+    private void gotoNextDay(EPGEvent currentEvent) {
+        //TODO
     }
 
     public void optimizeVisibility(EPGEvent epgEvent, boolean withAnimation) {
 
         long dT = 0;
         int dX = 0;
+        int dY = 0;
+
+        // calculate optimal Y position
+
+        int minYVisible = getScrollY(); // is 0 when scrolled completely to top (first channel fully visible)
+        int maxYVisible = minYVisible + getHeight();
+
+        int currentChannelPosition = epgEvent.getChannel().getChannelID();
+        int currentChannelTop = mTimeBarHeight + (currentChannelPosition * (mChannelLayoutHeight + mChannelLayoutMargin));
+        int currentChannelBottom = currentChannelTop + mChannelLayoutHeight;
+
+        if (currentChannelTop < minYVisible) {
+            dY = currentChannelTop - minYVisible - mTimeBarHeight;
+        } else if (currentChannelBottom > maxYVisible) {
+            dY = currentChannelBottom - maxYVisible;
+        }
+
+        // calculate optimal X position
 
         mTimeLowerBoundary = getTimeFrom(getScrollX());
-        mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
+        mTimeUpperBoundary = getTimeFrom(getScrollX() + getProgramAreaWidth());
         if (epgEvent.getEnd() > mTimeUpperBoundary) {
             //we need to scroll the grid to the left
             dT = (mTimeUpperBoundary - epgEvent.getEnd() - mMargin) * -1;
             dX = Math.round(dT / mMillisPerPixel);
-            mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, withAnimation ? 600 : 0);
         }
-        //re-calculate boundaries after scroll
         mTimeLowerBoundary = getTimeFrom(getScrollX());
         mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
         if (epgEvent.getStart() < mTimeLowerBoundary) {
-            //we need to scroll the grid to the left
+            //we need to scroll the grid to the right
             dT = (this.selectedEvent.getStart() - mTimeLowerBoundary - mMargin);
             dX = Math.round(dT / mMillisPerPixel);
-            mScroller.startScroll(getScrollX(), getScrollY(), dX, 0, withAnimation ? 600 : 0);
         }
+
+        if (dX != 0 || dY != 0) {
+            mScroller.startScroll(getScrollX(), getScrollY(), dX, dY, withAnimation ? 600 : 0);
+        }
+
     }
 
     private class OnGestureListener extends GestureDetector.SimpleOnGestureListener {
