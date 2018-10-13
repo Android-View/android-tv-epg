@@ -250,6 +250,61 @@ public class EPG extends ViewGroup {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        mTimeLowerBoundary = getTimeFrom(getScrollX());
+        mTimeUpperBoundary = getTimeFrom(getScrollX() + getWidth());
+
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            recalculateAndRedraw(null, true);
+        } else if (this.selectedEvent != null) {
+            if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                if (this.selectedEvent.getNextEvent() != null) {
+                    this.selectedEvent.selected = false;
+                    this.selectedEvent = this.selectedEvent.getNextEvent();
+                    this.selectedEvent.selected = true;
+                    optimizeVisibility(this.selectedEvent, true);
+                }
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT) {
+                if (this.selectedEvent.getPreviousEvent() != null) {
+                    this.selectedEvent.selected = false;
+                    this.selectedEvent = this.selectedEvent.getPreviousEvent();
+                    this.selectedEvent.selected = true;
+                    optimizeVisibility(this.selectedEvent, true);
+                }
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP) {
+                if (this.selectedEvent.getChannel().getPreviousChannel() != null) {
+                    long lowerBoundary = Math.max(mTimeLowerBoundary, this.selectedEvent.getStart());
+                    long upperBoundary = Math.min(mTimeUpperBoundary, this.selectedEvent.getEnd());
+                    long eventMiddleTime = (lowerBoundary + upperBoundary) / 2;
+                    EPGEvent previousChannelEvent = getProgramAtTime(this.selectedEvent.getChannel().getPreviousChannel().getChannelID(), eventMiddleTime);
+                    if (previousChannelEvent != null) {
+                        this.selectedEvent.selected = false;
+                        this.selectedEvent = previousChannelEvent;
+                        this.selectedEvent.selected = true;
+                    }
+                    optimizeVisibility(this.selectedEvent, true);
+                }
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN) {
+                if (this.selectedEvent.getChannel().getNextChannel() != null) {
+                    long lowerBoundary = Math.max(mTimeLowerBoundary, this.selectedEvent.getStart());
+                    long upperBoundary = Math.min(mTimeUpperBoundary, this.selectedEvent.getEnd());
+                    long eventMiddleTime = (lowerBoundary + upperBoundary) / 2;
+                    EPGEvent nextChannelEvent = getProgramAtTime(this.selectedEvent.getChannel().getNextChannel().getChannelID(), eventMiddleTime);
+                    if (nextChannelEvent != null) {
+                        this.selectedEvent.selected = false;
+                        this.selectedEvent = nextChannelEvent;
+                        this.selectedEvent.selected = true;
+                    }
+                    optimizeVisibility(this.selectedEvent, true);
+                }
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_BUTTON_R1 || event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) {
+                gotoNextDay(this.selectedEvent);
+            } else if (event.getKeyCode() == KeyEvent.KEYCODE_BUTTON_L1 || event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_REWIND) {
+                gotoPreviousDay(this.selectedEvent);
+            }
+
+            loadProgramDetails(this.selectedEvent);
+            redraw();
+        }
         return super.onKeyDown(keyCode, event);
     }
 
@@ -863,6 +918,7 @@ public class EPG extends ViewGroup {
         imageView.setImageMatrix(matrix);
     }
 
+    /**
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
         //TODO: select a default eventItem when none is selected.
@@ -924,6 +980,7 @@ public class EPG extends ViewGroup {
         }
         return super.onKeyUp(keyCode, event);
     }
+    */
 
     private void gotoPreviousDay(EPGEvent currentEvent) {
         //TODO

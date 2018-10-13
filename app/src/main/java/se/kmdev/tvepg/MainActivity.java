@@ -46,6 +46,14 @@ public class MainActivity extends AppCompatActivity {
     private boolean devMode = false;
 
     @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (epg != null)
+            return epg.onKeyDown(keyCode, event);
+        return super.onKeyDown(keyCode, event);
+    }
+
+    /**
+    @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
         updateTime();
         if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER) {
@@ -65,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
         }
         return super.onKeyUp(keyCode, event);
     }
+    */
 
     private void updateTime() {
         Date now = new Date();
