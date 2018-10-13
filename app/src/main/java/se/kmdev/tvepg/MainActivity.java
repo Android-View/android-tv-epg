@@ -108,12 +108,12 @@ public class MainActivity extends AppCompatActivity {
         epg.setEPGClickListener(new EPGClickListener() {
             @Override
             public void onChannelClicked(int channelPosition, EPGChannel epgChannel) {
-                //Toast.makeText(MainActivity.this, epgChannel.getName() + " clicked", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, epgChannel.getName() + " clicked", Toast.LENGTH_SHORT).show();
             }
 
             @Override
             public void onEventClicked(int channelPosition, int programPosition, EPGEvent epgEvent) {
-                //Toast.makeText(MainActivity.this, epgEvent.getTitle() + " clicked", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, epgEvent.getTitle() + " clicked", Toast.LENGTH_SHORT).show();
                 epg.selectEvent(epgEvent, true);
                 updateTime();
             }
@@ -125,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Do initial load of data.
-        //new AsyncLoadEPGData(epg).execute();
+        new AsyncLoadEPGData(epg).execute();
 
 
     }
@@ -149,6 +149,7 @@ public class MainActivity extends AppCompatActivity {
         setLayout(newConfig.orientation);
     }
 
+    /**
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
 
@@ -165,6 +166,7 @@ public class MainActivity extends AppCompatActivity {
         setLayout(this.getResources().getConfiguration().orientation);
         updateTime();
     }
+    */
 
     private void setLayout(int orientation) {
         epg.setOrientation(orientation);
